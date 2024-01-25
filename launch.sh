@@ -19,6 +19,7 @@ log_dir="/scratch/gencore/GENEFLOW/alpha/logs/${fcid}/pipeline"
 
 nextflow_command="nextflow \
   -log ${log_dir}/nextflow.log run /home/gencore/SCRIPTS/GENEFLOW/main.nf \
+  -c /home/gencore/SCRIPTS/GENEFLOW/local.config \
   -c /home/gencore/SCRIPTS/GENEFLOW/nextflow.config \
   --run_dir_path $run_dir_path \
   --trace_file_path ${log_dir}/trace.txt \
