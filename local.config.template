@@ -1,0 +1,20 @@
+// Run Directory Path
+params.run_dir_path = ""
+
+// Global Configuration
+env.alpha = ""
+env.tmp_dir = ""
+env.fastqc_path = ""
+env.archive_path=""
+
+// nextflow work dir
+workDir = ""
+
+// email settings
+mail {
+    smtp.user = ""
+    smtp.password = ""
+    smtp.host = "smtp.gmail.com"
+    smtp.port = 587
+    smtp.starttls.enable = true
+}
