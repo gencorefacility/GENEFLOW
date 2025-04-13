@@ -43,7 +43,7 @@ do
         id=$(basename "${file%%.fastq.gz}" | cut -d '.' -f2) ################### needs to be same as below
         merged_file="${fcid}_${id}.fastq.gz"
     else
-        id=$(perl -ne 'print $1 if /_(n0[1-4]_.+)\.fastq\.gz/' <<< "${file}")
+        id=$(echo "${file}" | grep -oP '_n0[1-4]_.+\.fastq\.gz' | sed -n 's/.*\(_n0[1-4]_.\+\)\.fastq\.gz/\1/p')
         echo "id: $id"
         merged_file="${fcid}_${id}.fastq.gz"
     fi
