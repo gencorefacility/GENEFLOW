@@ -6,6 +6,6 @@ channels:
 dependencies:
   - pbzip2=1.1.13
   - pip:
-    - interop==1.1.4
+    - interop==1.5.0
     - numpy==1.19.5
     - multiqc=1.27
