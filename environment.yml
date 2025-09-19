@@ -7,5 +7,5 @@ dependencies:
   - pbzip2=1.1.13
   - pip:
     - interop==1.1.4
-    - numpy==1.19.5
+    - numpy==2.3.3
     - multiqc=1.27
