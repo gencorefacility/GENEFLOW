@@ -77,8 +77,6 @@ process tar {
 
 	tag "${fcid}"
 
-  module params.PBZIP2_MODULE
-
 	output:
 	path("*.tar.bz2"), emit: file
 	path(".command.*")
@@ -121,8 +119,6 @@ process _basecall_bases2fastq {
   publishDir "${alpha}/logs/${fcid}/basecall/${lane}", mode:'copy', failOnError: false, pattern: '*.csv'
 
   tag "${fcid}"
-
-  module params.BASES2FASTQ_MODULE
 
   input:
   val lane
@@ -193,9 +189,6 @@ process _basecall_picard{
   publishDir "${alpha}/logs/${fcid}/basecall/${lane}", mode:'copy', failOnError: true, pattern: '.command.*'
 
   tag "${fcid}"
-
-  module params.PICARD_MODULE
-  module params.JDK_MODULE
 
   input:
   val lane
@@ -474,8 +467,6 @@ process multiqc {
     publishDir "${alpha}/logs/${fcid}/qc/${workflow.runName}/multiqc/${lane}", mode:'copy', failOnError: true
 
     tag "${fcid}"
-
-    module params.MULTIQC_MODULE
 
     input:
     tuple(val(path_to_data), path(fastqc))
