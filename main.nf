@@ -475,7 +475,7 @@ process multiqc {
 
     tag "${fcid}"
 
-    container 'docker://multiqc/multiqc:v1.27'
+    container 'docker://multiqc/multiqc:v1.31'
 
     input:
     tuple(val(path_to_data), path(fastqc))
