@@ -121,14 +121,18 @@ env {
 
 profiles {
 
-    conda {
-        conda.enabled = true
+    default {
+        singularity.enabled = true
+
         process {
-            withName: 'multiqc' {
-                conda = 'bioconda::multiqc==1.27'
+            container = /path/to/conda-container
+            
+            withName: '_basecall_picard' {
+                container = 'docker://broadinstitute/picard:2.23.8'
             }
-            withName: 'tar' {
-                conda = 'conda-forge::pbzip2==1.1.13'
+
+            withName: 'bases2fastq' {
+                container = 'docker://elembio/bases2fastq:2.2.0
             }
         }
     }
