@@ -1,29 +1,15 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:base"],
-  "packageRules": [
+  "fileMatchers": ["**/{nextflow.config,main.nf}"],
+  "matchManagers": [
     {
-      "matchManagers": ["conda"],
-      "enabled": true,
-      "groupName": "Conda dependencies",
-      "schedule": ["weekly"],
-      "automerge": false
-    },
-    {
-      "matchManagers": ["pip_requirements", "poetry"],
-      "enabled": true,
-      "groupName": "Python dependencies",
-      "schedule": ["weekly"],
-      "automerge": false
+      "manager": "regex",
+      "fileMatch": ["main.nf"],
+      "matchStrings": [
+        "container\\s+['\"](?<depName>docker:\\/\\/.*):(?<currentValue>.*)['\"]"
+      ]
     }
-  ],
-  "enabledManagers": [
-    "conda",
-    "pip_requirements",
-    "poetry"
-  ],
-  "dependencyDashboard": true,
-  "labels": ["dependencies", "python"],
-  "prHourlyLimit": 5,
-  "prConcurrentLimit": 10
+  ]
 }
+
