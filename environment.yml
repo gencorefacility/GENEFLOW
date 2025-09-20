@@ -6,4 +6,4 @@ dependencies:
   - pbzip2=1.1.13
   - pip:
     - interop==1.1.4
-    - multiqc=1.27
+    - multiqc==1.27
