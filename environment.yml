@@ -2,12 +2,8 @@ name: slime
 channels:
   - defaults
   - conda-forge
-  - bioconda
 dependencies:
-  # renovate: datasource=conda depName=conda-forge/pbzip2
   - pbzip2=1.1.13
   - pip:
-    # renovate: datasource=pypi
     - interop==1.1.4
-    # renovate: datasource=pypi
     - multiqc=1.27
