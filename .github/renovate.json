@@ -1,16 +1,21 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:base"],
+  "extends": [
+    "config:base"
+  ],
   "baseBranches": [
     "dev"
   ],
-  "packageRules": [
+  "customManagers": [
     {
-      "fileMatch": ["main.nf"],
-      "matchManagers": ["regex"],
+      "customType": "regex",
+      "fileMatch": [
+        "^main\\.nf$"
+      ],
       "matchStrings": [
-        "container\\s+['\"](?<depName>docker:\\/\\/.*):(?<currentValue>.*)['\"]"
-      ]
+        "container\\s+['\"]docker:\\/\\/(?<depName>.*?):(?<currentValue>.*?)['\"]"
+      ],
+      "datasourceTemplate": "docker"
     }
   ]
 }
