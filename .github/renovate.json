@@ -1,15 +1,16 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:base"],
-  "fileMatchers": ["**/{nextflow.config,main.nf}"],
-  "matchManagers": [
+  "baseBranches": [
+    "dev"
+  ],
+  "packageRules": [
     {
-      "manager": "regex",
       "fileMatch": ["main.nf"],
+      "matchManagers": ["regex"],
       "matchStrings": [
         "container\\s+['\"](?<depName>docker:\\/\\/.*):(?<currentValue>.*)['\"]"
       ]
     }
   ]
 }
-
