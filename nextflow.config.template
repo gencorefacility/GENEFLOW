@@ -120,23 +120,6 @@ env {
 }
 
 profiles {
-
-    default {
-        singularity.enabled = true
-
-        process {
-            container = /path/to/conda-container
-            
-            withName: '_basecall_picard' {
-                container = 'docker://broadinstitute/picard:2.23.8'
-            }
-
-            withName: 'bases2fastq' {
-                container = 'docker://elembio/bases2fastq:2.2.0
-            }
-        }
-    }
-
     hpc-modules {
         process {
             withName: 'multiqc' {
@@ -152,6 +135,44 @@ profiles {
                 module = params.PICARD_MODULE
                 module = params.JDK_MODULE
             }
+        }
+    }
+
+    hpc-container {
+        singularity.enabled = true
+
+        process {
+            container = /path/to/conda-container
+            
+            withName: '_basecall_picard' {
+                container = 'docker://broadinstitute/picard:2.23.8'
+            }
+
+            withName: 'bases2fastq' {
+                container = 'docker://elembio/bases2fastq:2.2.0
+            }
+        }
+    }
+
+    default {
+        singularity.enabled = true
+        
+        conda.enabled = true
+        #conda.cacheDir = 
+        #conda.useMamba = true
+
+
+        process {
+            conda = ${baseDir}/environment.yml
+
+            withName: '_basecall_picard' {
+                container = 'docker://broadinstitute/picard:2.23.8'
+            }
+
+            withName: 'bases2fastq' {
+                container = 'docker://elembio/bases2fastq:2.2.0
+            }
+
         }
     }
 }
