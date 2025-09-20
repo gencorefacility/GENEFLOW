@@ -118,3 +118,36 @@ trace {
 env {
   SEQERA_ACCESS_TOKEN=""
 }
+
+profiles {
+
+    conda {
+        conda.enabled = true
+        process {
+            withName: 'multiqc' {
+                conda = 'bioconda::multiqc==1.27'
+            }
+            withName: 'tar' {
+                conda = 'conda-forge::pbzip2==1.1.13'
+            }
+        }
+    }
+
+    hpc-modules {
+        process {
+            withName: 'multiqc' {
+                module = params.MULTIQC_MODULE
+            }  
+            withName: 'tar' {
+                module = params.PBZIP2_MODULE
+            } 
+            withName: '_basecall_bases2fastq' {
+                module = params.BASES2FASTQ_MODULE
+            }
+            withName: '_basecall_picard' {
+                module = params.PICARD_MODULE
+                module = params.JDK_MODULE
+            }
+        }
+    }
+}
