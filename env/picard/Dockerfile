@@ -1,2 +1,2 @@
-FROM broadinstitute/picard:2.23.8
+FROM broadinstitute/picard:2.3
 CMD ["/bin/bash"]
