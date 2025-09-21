@@ -2,7 +2,6 @@ name: slime
 channels:
   - defaults
   - conda-forge
-  - bioconda
 dependencies:
   - pbzip2=1.1.13
   - pip:
