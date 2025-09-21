@@ -10,3 +10,9 @@ updates:
     schedule:
       interval: "daily"
     target-branch: "module-profile"
+  - package-ecosystem: "docker"
+    directory: "/env"
+    schedule:
+      interval: "daily"
+    target-file: "*.Dockerfile"
+    target-branch: "module-profile"
