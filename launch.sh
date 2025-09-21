@@ -10,6 +10,7 @@
 
 module purge
 module load nextflow/23.04.1
+module load mambaforge/23.1.0
 
 run_dir_path=$1
 fcid=$2
