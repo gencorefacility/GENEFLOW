@@ -10,10 +10,10 @@ env.archive_path= ""
 params.admin_email = ""
 
 // modules
-params.PICARD_MODULE = "picard/2.23.8"
+params.PICARD_MODULE = "picard/3.4.0"
 params.PHENIQS1_MODULE = "pheniqs/1.1.0"
 params.PHENIQS2_MODULE = "pheniqs/2.1.0"
-params.JDK_MODULE = "jdk/1.8.0_271"
+params.JDK_MODULE = "openjdk/17.0.2"
 params.ANACONDA_MODULE = "anaconda3/2020.07"
 params.MULTIQC_MODULE = "multiqc/1.27"
 params.PBZIP2_MODULE = "pbzip2/1.1.13"
