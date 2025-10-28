@@ -1,11 +1,11 @@
 #!/bin/sh
 #
 #SBATCH --verbose
-#SBATCH --time=168:00:00
+#SBATCH --time=7-00:00:00
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1
-#SBATCH --cpus-per-task=6
-#SBATCH --mem=10000
+#SBATCH --cpus-per-task=3
+#SBATCH --mem=6GB
 #SBATCH --mail-user=netID@nyu.edu
 
 module purge
