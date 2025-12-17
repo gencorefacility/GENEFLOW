@@ -3,7 +3,8 @@ channels:
   - defaults
   - conda-forge
 dependencies:
+  - python=3.13
   - pbzip2=1.1.13
   - pip:
-    - interop==1.1.4
-    - multiqc=1.27
+    - interop==1.7.0
+    - multiqc==1.32

@@ -13,6 +13,9 @@ def cmdList = [
     "-c",
     "from slime import get_num_lanes; print(get_num_lanes('${fcid}'))"
 ]
+
+println cmdList
+
 def proc = cmdList.execute(envVars, null)
 proc.waitFor()
 if (proc.exitValue() != 0) {
@@ -36,7 +39,9 @@ process check_no_demux {
 
 	tag "${fcid}"
 
-	beforeScript "export PYTHONPATH=$PYTHONPATH:${workflow.projectDir}/bin"
+        beforeScript "module load anaconda3/2025.06; export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
+      
+        module 'anaconda3/2025.06'
 
 	input:
 	val lane
@@ -55,8 +60,7 @@ process check_do_merge {
 	echo true
 
 	tag "${fcid}"
-
-	beforeScript "export PYTHONPATH=$PYTHONPATH:${workflow.projectDir}/bin"
+        beforeScript "module load anaconda3/2025.06; export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
 
   input:
   val qc_dep // not actually used in this process, but need to wait for this before starting
@@ -108,8 +112,8 @@ process rsyncToArchive {
 	shell:
 	"""
 	echo "rsyncToArchive: SRC: ${SRC}, destination: ${destination}"
-	ssh -i \$HOME/.ssh/id_rsa core2 "mkdir -p ${destination}"
-  rsync -avz --copy-links --progress --chmod=Dug=rwx,Dgo=rx,Fug=rw,Fgo=r -e "ssh -i ${HOME}/.ssh/id_rsa" ${SRC} core2:${destination}/
+	echo 'ssh -i \$HOME/.ssh/id_rsa core2 "mkdir -p ${destination}"'
+        echo 'rsync -avz --copy-links --progress --chmod=Dug=rwx,Dgo=rx,Fug=rw,Fgo=r -e "ssh -i ${HOME}/.ssh/id_rsa" ${SRC} core2:${destination}/'
 	exit_code=\$?
 	"""
 }
@@ -199,22 +203,18 @@ process _basecall_picard{
 
   script:
   """
-    read_structure=\$(python3 -c "
-    import xml.dom.minidom
+    runinfo_xml="${params.run_dir_path}/RunInfo.xml"
 
-    read_structure = ''
-    runinfo = xml.dom.minidom.parse('${params.run_dir_path}/RunInfo.xml')
-    nibbles = runinfo.getElementsByTagName('Read')
+    # 1. Calculate read_structure
+    read_structure=\$(grep '<Read' "\$runinfo_xml" | \\
+                    sed -n 's/.*NumCycles="\\([0-9]\\+\\)".*/\\1T/p' | \\
+                    tr -d '\\n')
 
-    for nib in nibbles:
-      read_structure += nib.attributes['NumCycles'].value + 'T'
-    
-    print(read_structure)
-    ")
+    # 2. Calculate run_barcode
+    run_dir_name=\$(basename "${params.run_dir_path}")
+    run_barcode_with_zeros=\$(echo "\$run_dir_name" | awk -F '_' '{print \$(NF-1)}')
+    run_barcode=\$(echo "\$run_barcode_with_zeros" | sed 's/^0*//')
 
-    run_barcode=\$(python3 -c "
-    print('${params.run_dir_path}'.split('_')[-2].lstrip('0'))
-    ")
 
     out_path="${alpha}/lane/${fcid}/${lane}"
     mkdir -p \$out_path
@@ -222,7 +222,7 @@ process _basecall_picard{
     tmp_work_dir="${tmp_dir}${fcid}/${lane}"
     mkdir -p \$tmp_work_dir
 
-    java -jar -Xmx58g \$PICARD_JAR IlluminaBasecallsToFastq \
+    java -jar -Xmx58g /usr/picard/picard.jar IlluminaBasecallsToFastq \
       LANE=${lane} \
       READ_STRUCTURE=\${read_structure} \
       BASECALLS_DIR=${params.run_dir_path}/Data/Intensities/BaseCalls \
@@ -245,7 +245,7 @@ process _basecall_picard{
 process make_pheniqs_config {
 	echo true
 	
-	publishDir "${alpha}/pheniqs_conf/${fcid}/${lane}", mode:'copy', pattern: 'demux.json'
+        publishDir "${alpha}/pheniqs_conf/${fcid}/${lane}", mode:'copy', pattern: 'demux.json'
 	publishDir "${alpha}/logs/${fcid}/demux/make_config/${lane}", mode:'copy', failOnError: true
 
 	tag "${fcid}"
@@ -261,7 +261,7 @@ process make_pheniqs_config {
 	no_demux == "false"
 
 	script:
-    if( params.pheniqs_version == '1' )
+        if( params.pheniqs_version == '1' )
 	    """
 	    pheniqs_config.py \
 		    $fcid \
@@ -269,21 +269,21 @@ process make_pheniqs_config {
 		    20
 	    """
 
-    else if( params.pheniqs_version == '2' )
-      """
-      pheniqs_config_v2.py \
-        $fcid \
-        $lane \
-        20
-      """
-    else
-      error "Invalid params.pheniqs_version : ${params.pheniqs_version}"
+        else if( params.pheniqs_version == '2' )
+            """
+            pheniqs_config_v2.py \
+               $fcid \
+               $lane \
+               20
+            """
+        else
+            error "Invalid params.pheniqs_version : ${params.pheniqs_version}"
 }
 
 process run_pheniqs {
 	echo true
-
-	publishDir "${alpha}/logs/${fcid}/demux/pheniqs/${lane}", mode:'copy', failOnError: true
+        conda 'bioconda::pheniqs=2.1.0 python=3.8.5'	
+        publishDir "${alpha}/logs/${fcid}/demux/pheniqs/${lane}", mode:'copy', failOnError: true
 	publishDir "${alpha}/pheniqs_out/${fcid}/${lane}", mode:'copy', failOnError: true, pattern: 'demux.out'
 
 	tag "${fcid}"
@@ -299,15 +299,15 @@ process run_pheniqs {
   script:
     if( params.pheniqs_version == '1' )
         """
-        module load ${params.PHENIQS1_MODULE}
-        rm -rf ${alpha}/sample/${fcid}/${lane}/*
+        #module load ${params.PHENIQS1_MODULE}
+        rm -rf "${alpha}/sample/${fcid}/${lane}/*"
         pheniqs demux -C $pheniqs_conf > 'demux.out'
         """
 
     else if( params.pheniqs_version == '2' )
         """
-        module load ${params.PHENIQS2_MODULE}
-        rm -rf ${alpha}/sample/${fcid}/${lane}/*
+        #module load ${params.PHENIQS2_MODULE}
+        rm -rf "${alpha}/sample/${fcid}/${lane}/*"
         pheniqs mux -c $pheniqs_conf &> 'demux.out'
         """
     else
@@ -320,10 +320,9 @@ process demux_reports {
     publishDir "${alpha}/logs/${fcid}/qc/${workflow.runName}/demux_reports/", mode:'copy', failOnError: true
 
     tag "${fcid}"
-
-    module params.ANACONDA_MODULE
-    conda params.conda_path
-
+    
+    beforeScript "module load anaconda3/2025.06"
+    
     input:
     val lanes //because data might be merged, need to wait for all lanes
 
@@ -353,7 +352,7 @@ process merge_lanes {
 
     tag "${fcid}"
 
-    beforeScript "export PYTHONPATH=$PYTHONPATH:${workflow.projectDir}/bin"
+    beforeScript "module load anaconda3/2025.06; export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
 
     input:
     val lanes //need to wait for all lanes
@@ -380,9 +379,9 @@ process get_lane_paths {
 
 	tag "${fcid}"
 
-	beforeScript "export PYTHONPATH=$PYTHONPATH:${workflow.projectDir}/bin"
-
-	input:
+        beforeScript "module load anaconda3/2025.06; export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
+	
+        input:
 	val do_merge
 
 	output:
@@ -436,7 +435,7 @@ process fastqc {
 
     tag "${fcid}"
 
-    beforeScript "export PYTHONPATH=$PYTHONPATH:${workflow.projectDir}/bin"
+    beforeScript "module load anaconda3/2025.06; export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
 
     input:
     val path
