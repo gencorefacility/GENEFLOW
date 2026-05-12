@@ -121,8 +121,8 @@ process rsyncToArchive {
 	shell:
 	"""
 	echo "rsyncToArchive: SRC: ${SRC}, destination: ${destination}"
-	echo 'ssh -i \$HOME/.ssh/id_rsa core2 "mkdir -p ${destination}"'
-        echo 'rsync -avz --copy-links --progress --chmod=Dug=rwx,Dgo=rx,Fug=rw,Fgo=r -e "ssh -i ${HOME}/.ssh/id_rsa" ${SRC} core2:${destination}/'
+	ssh core2 "mkdir -p ${destination}"
+	rsync -avz --copy-links --progress --chmod=Dug=rwx,Dgo=rx,Fug=rw,Fgo=r ${SRC} core2:${destination}/
 	exit_code=\$?
 	"""
 }
