@@ -630,12 +630,31 @@ workflow pheniqs_conf{
     make_pheniqs_config(check_no_demux.out.lane)
 }
 
-workflow {
+workflow master{
     archive()
     _basecall(lanes)
     _demux(_basecall.out.lane) 
     qc_dep = _demux.out.collect().ifEmpty(_basecall.out.lane.collect())
     _qc(archive.out, qc_dep)
+}
+
+// Clean new entry workflow - just dispatch logic
+workflow {
+    if (params.workflow_type == 'demux') {
+        demux()
+    }
+    else if (params.workflow_type == 'qc') {
+        qc()
+    }
+    else if (params.workflow_type == 'pheniqs_conf') {
+        pheniqs_conf()
+    }
+    else if (params.workflow_type == 'master') {
+        master()
+    }
+    else {
+        error("Unknown workflow_type: ${params.workflow_type}. Valid options: main, demux, qc, pheniqs_conf")
+    }
 }
 
 workflow.onComplete {
