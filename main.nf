@@ -145,6 +145,10 @@ process _basecall_bases2fastq {
 
   script:
   """
+    tmp_work_dir="${tmp_dir}${fcid}/${lane}"
+    mkdir -p \$tmp_work_dir
+    export TMPDIR="\$tmp_work_dir"
+
     echo "[SETTINGS],,,
     SettingName,Value,Lane,
     I1FastQ,TRUE,$lane,
