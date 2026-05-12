@@ -17,13 +17,22 @@ def cmdList = [
 println cmdList
 
 def proc = cmdList.execute(envVars, null)
+
+// Consume streams immediately to prevent blocking
+def stdout = new StringBuilder()
+def stderr = new StringBuilder()
+
+proc.consumeProcessOutput(stdout, stderr)
+
 proc.waitFor()
+
 if (proc.exitValue() != 0) {
-    error "get_num_lanes failed: ${proc.err.text}"
+    error "get_num_lanes failed (exit code: ${proc.exitValue()}):\nSTDOUT: ${stdout}\nSTDERR: ${stderr}"
 }
-def lines = proc.in.text.readLines()
+
+def lines = stdout.toString().readLines()
 if (!lines) {
-  error "No output from get_num_lanes()"
+    error "No output from get_num_lanes()"
 }
 def num_lanes = lines.last().trim().toInteger()
 
