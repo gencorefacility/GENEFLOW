@@ -330,14 +330,14 @@ process run_pheniqs {
     if( params.pheniqs_version == '1' )
         """
         #module load ${params.PHENIQS1_MODULE}
-        rm -rf "${alpha}/sample/${fcid}/${lane}/*"
+        rm -rf ${alpha}/sample/${fcid}/${lane}/*
         pheniqs demux -C $pheniqs_conf > 'demux.out'
         """
 
     else if( params.pheniqs_version == '2' )
         """
         #module load ${params.PHENIQS2_MODULE}
-        rm -rf "${alpha}/sample/${fcid}/${lane}/*"
+        rm -rf ${alpha}/sample/${fcid}/${lane}/*
         pheniqs mux -c $pheniqs_conf &> 'demux.out'
 
         cat <<-END_VERSIONS > pheniqs_version.yml
