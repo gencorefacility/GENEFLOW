@@ -167,6 +167,7 @@ process _basecall_bases2fastq {
       --exclude-tile 'L.*R..C..S.' \
       --include-tile 'L${lane}R..C..S.' \
       -p ${task.cpus} \
+      --no-error-on-invalid \
       --run-manifest run_manifest.csv
 
     # Rename output files
