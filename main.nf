@@ -130,6 +130,7 @@ process rsyncToArchive {
 process _basecall_bases2fastq {
   publishDir "${alpha}/logs/${fcid}/basecall/${lane}", mode:'copy', failOnError: true, pattern: '.command.*'
   publishDir "${alpha}/logs/${fcid}/basecall/${lane}", mode:'copy', failOnError: false, pattern: '*.csv'
+  publishDir "${alpha}/logs/${fcid}/versions", mode:'copy', failOnError: true, pattern: '*_version.yml'
 
   tag "${fcid}"
 
@@ -139,7 +140,8 @@ process _basecall_bases2fastq {
   output:
   val(lane), emit: lane
   path(".command.*")
-  path("*.csv") 
+  path("*.csv")
+  path "*_version.yml", emit: version 
 
   script:
   """
@@ -196,11 +198,17 @@ process _basecall_bases2fastq {
           counter=\$((counter + 1))
       fi
     done
+
+    cat <<-END_VERSIONS > bases2fastq_version.yml
+    "${task.process}":
+        bases2fastq: \$(bases2fastq --version | awk -F'version |,' '{print \$2}')
+    END_VERSIONS
   """
 }
 
 process _basecall_picard{
   publishDir "${alpha}/logs/${fcid}/basecall/${lane}", mode:'copy', failOnError: true, pattern: '.command.*'
+  publishDir "${alpha}/logs/${fcid}/versions", mode:'copy', failOnError: true, pattern: '*_version.yml'
 
   tag "${fcid}"
 
@@ -210,6 +218,7 @@ process _basecall_picard{
   output:
   val(lane), emit: lane
   path(".command.*")
+  path "*_version.yml", emit: version
 
   script:
   """
@@ -249,6 +258,11 @@ process _basecall_picard{
       TMP_DIR=\${tmp_work_dir}
 
     rm -rf \${tmp_work_dir}
+
+    cat <<-END_VERSIONS > IlluminaBasecallsToFastq_version.yml
+    "${task.process}":
+        picard IlluminaBasecallsToFastq: \$(java -jar -Xmx58g /usr/picard/picard.jar IlluminaBasecallsToFastq --version 2>&1 | awk -F: '/^Version:/ {print \$2}')
+    END_VERSIONS
     """
 }
 
@@ -295,6 +309,7 @@ process run_pheniqs {
         conda 'bioconda::pheniqs=2.1.0 python=3.8.5'	
         publishDir "${alpha}/logs/${fcid}/demux/pheniqs/${lane}", mode:'copy', failOnError: true
 	publishDir "${alpha}/pheniqs_out/${fcid}/${lane}", mode:'copy', failOnError: true, pattern: 'demux.out'
+  	publishDir "${alpha}/logs/${fcid}/versions", mode:'copy', failOnError: true, pattern: '*_version.yml'
 
 	tag "${fcid}"
 
@@ -305,6 +320,7 @@ process run_pheniqs {
 	val(lane), emit: lane	// used as trigger for qc
 	path("demux.out")
 	path(".command.*")
+	path "*_version.yml", emit: version
 
   script:
     if( params.pheniqs_version == '1' )
@@ -319,6 +335,11 @@ process run_pheniqs {
         #module load ${params.PHENIQS2_MODULE}
         rm -rf "${alpha}/sample/${fcid}/${lane}/*"
         pheniqs mux -c $pheniqs_conf &> 'demux.out'
+
+        cat <<-END_VERSIONS > pheniqs_version.yml
+        "${task.process}":
+          pheniqs: \$(pheniqs --version | awk '{print \$3}')
+        END_VERSIONS
         """
     else
         error "Invalid params.pheniqs_version : ${params.pheniqs_version}"
@@ -496,6 +517,7 @@ process multiqc {
 
     cp ${fcid}_${lane}_*_mqc.txt ${lane}/.
     cd ${lane}
+    find "${alpha}/logs/${fcid}/versions" -name "*_version.yml" -exec cat {} + > versions_mqc_versions.yml
     multiqc -f -c ${workflow.projectDir}/bin/mqc_config.yaml --ai-summary-full .
     """
 }
