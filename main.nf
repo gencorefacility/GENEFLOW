@@ -510,7 +510,9 @@ process multiqc {
 
     output:
     path("${lane}/"), emit: files
-    tuple(val(path_to_data), path("${lane}/${fcid}_${lane}_summary_mqc.txt"), emit: delivery_path_and_summary_report)
+    val(path_to_data), emit: delivery_path
+    path("${lane}/${fcid}_${lane}_summary_mqc.txt"), emit: summary_report
+    path("${lane}/undetermined_barcodes.txt"), emit: undetermined_barcodes
     path(".command.*")
 
     shell:
@@ -525,6 +527,11 @@ process multiqc {
     cd ${lane}
     find "${alpha}/logs/${fcid}/versions" -name "*_version.yml" -exec cat {} + > versions_mqc_versions.yml
     multiqc -f -c ${workflow.projectDir}/bin/mqc_config.yaml --ai-summary-full .
+
+    # Ensure undetermined_barcodes.txt exists  (e.g. when no_demux is true)
+    if [ ! -f "undetermined_barcodes.txt" ]; then
+        echo "# No data generated" > undetermined_barcodes.txt
+    fi
     """
 }
 
@@ -538,7 +545,9 @@ process deliver {
     input:
     val archive_exit_code
     val rsync_exit_code
-    tuple(val(path), path(summary_report))
+    val(path) // path to data to deliver
+    path(summary_report)
+    path(undetermined_barcodes_file)
 
     output:
     path(".command.*")
@@ -554,7 +563,7 @@ process deliver {
     echo "archive_exit_code: $archive_exit_code"
 
     # check qc and deliver
-    qc_deliver.py ${path.trim()} ${summary_report}
+    qc_deliver.py ${path.trim()} ${summary_report} ${undetermined_barcodes_file}
     """
 }
 
@@ -584,7 +593,7 @@ workflow _qc{
         fastqc(path, fastqc_dep, qc_dep)
         multiqc(fastqc.out.delivery_path_and_fastqc_files, demux_reports.out.reports)
         rsyncToArchive(multiqc.out.files, fastqc_path + "/${fcid}/", 'qc')
-	deliver(archive_exit_code, rsyncToArchive.out.exit_code, multiqc.out.delivery_path_and_summary_report)
+	deliver(archive_exit_code, rsyncToArchive.out.exit_code, multiqc.out.delivery_path, multiqc.out.summary_report, multiqc.out.undetermined_barcodes)
 }
 
 workflow archive{
