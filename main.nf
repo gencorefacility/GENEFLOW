@@ -273,7 +273,8 @@ process _basecall_picard{
 process make_pheniqs_config {
 	echo true
 	
-        publishDir "${alpha}/pheniqs_conf/${fcid}/${lane}", mode:'copy', pattern: 'demux.json'
+	publishDir "${alpha}/pheniqs_conf/${fcid}/${lane}", mode:'copy', pattern: 'demux.json'
+	publishDir "${alpha}/pheniqs_conf/${fcid}/${lane}", mode:'copy', pattern: 'expected_barcodes.txt'
 	publishDir "${alpha}/logs/${fcid}/demux/make_config/${lane}", mode:'copy', failOnError: true
 
 	tag "${fcid}"
@@ -283,6 +284,7 @@ process make_pheniqs_config {
 
 	output:
 	tuple val(lane), path('demux.json'), emit: pheniqs_conf
+	path("expected_barcodes.txt")
 	path(".command.*")
 
 	when:
