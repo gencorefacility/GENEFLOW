@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash -l
 #
 #SBATCH --verbose
 #SBATCH --time=02-00:00:00
