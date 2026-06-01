@@ -48,10 +48,8 @@ process check_no_demux {
 
 	tag "${fcid}"
 
-        beforeScript "module load anaconda3/2025.06; export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
+        beforeScript "export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
       
-        module 'anaconda3/2025.06'
-
 	input:
 	val lane
 
@@ -69,7 +67,7 @@ process check_do_merge {
 	echo true
 
 	tag "${fcid}"
-        beforeScript "module load anaconda3/2025.06; export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
+        beforeScript "export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
 
   input:
   val qc_dep // not actually used in this process, but need to wait for this before starting
@@ -358,8 +356,6 @@ process demux_reports {
 
     tag "${fcid}"
     
-    beforeScript "module load anaconda3/2025.06"
-    
     input:
     val lanes //because data might be merged, need to wait for all lanes
 
@@ -389,7 +385,7 @@ process merge_lanes {
 
     tag "${fcid}"
 
-    beforeScript "module load anaconda3/2025.06; export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
+    beforeScript "export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
 
     input:
     val lanes //need to wait for all lanes
@@ -416,7 +412,7 @@ process get_lane_paths {
 
 	tag "${fcid}"
 
-        beforeScript "module load anaconda3/2025.06; export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
+        beforeScript "export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
 	
         input:
 	val do_merge
@@ -472,7 +468,7 @@ process fastqc {
 
     tag "${fcid}"
 
-    beforeScript "module load anaconda3/2025.06; export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
+    beforeScript "export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
 
     input:
     val path
