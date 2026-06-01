@@ -1,7 +1,8 @@
 // Run Directory Path
 params.run_dir_path = ""
 params.pheniqs_version = "2"
-params.workflow_type = 'master'
+params.workflow_type = "master"
+params.test = false
 
 // Global Configuration
 env.alpha = ""

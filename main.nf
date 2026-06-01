@@ -549,7 +549,7 @@ process deliver {
     path(".command.*")
 
     when:
-    archive_exit_code.toInteger() == 0 && rsync_exit_code.toInteger() == 0
+    archive_exit_code.toInteger() == 0 && rsync_exit_code.toInteger() == 0 && !params.test
 
     shell:
     lane = new File(path).getName().trim()
@@ -560,6 +560,34 @@ process deliver {
 
     # check qc and deliver
     qc_deliver.py ${path.trim()} ${summary_report} ${undetermined_barcodes_file}
+    """
+}
+
+process compare_runs{
+    echo true
+
+    publishDir "${alpha}/logs/${fcid}/qc/${workflow.runName}/compare_runs", mode:'copy', failOnError: true
+
+    tag "${fcid}"
+    
+    input:    
+    path multiqc_files // not using in script, we point to the multiqc dir directly for --new_dir, but use as depdendency
+    
+    output:
+    path(".command.*")
+
+    when:
+    params.test
+
+    script:
+    """
+    # Find the first (and presumably only) directory
+    lane=\$(find ${alpha}/logs/${fcid}/qc/${workflow.runName}/multiqc/ -maxdepth 1 -type d ! -path ${alpha}/logs/${fcid}/qc/${workflow.runName}/multiqc/ -exec basename {} \\;)
+
+    compare_runs.py \
+        --truth_dir $params.truth_dir \
+        --new_dir ${alpha}/logs/${fcid}/qc/${workflow.runName}/multiqc/\${lane}/\${lane}/ \
+        --abs_tol 0 --rel_tol 0
     """
 }
 
@@ -589,6 +617,7 @@ workflow _qc{
         fastqc(path, fastqc_dep, qc_dep)
         multiqc(fastqc.out.delivery_path_and_fastqc_files, demux_reports.out.reports)
         rsyncToArchive(multiqc.out.files, fastqc_path + "/${fcid}/", 'qc')
+	compare_runs(multiqc.out.files)
 	deliver(archive_exit_code, rsyncToArchive.out.exit_code, multiqc.out.delivery_path, multiqc.out.summary_report, multiqc.out.undetermined_barcodes)
 }
 
