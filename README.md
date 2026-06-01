@@ -88,3 +88,40 @@ In a production environment, `launch.sh` is typically submitted as an SBATCH job
          launch.sh /scratch/gencore/sequencers/NB502067/240124_NB502067_0578_AHKFT5BGXV HKFT5BGXV
 ```
 
+## Testing
+  
+The pipeline includes a regression test suite that compares new pipeline output against known-good (ground truth) results.
+
+### How it works
+
+1. Establish ground truth: Run the pipeline normally on a real run directory. The QC reports produced by MultiQC (demux report, run stats
+ summary, undetermined barcodes) serve as the baseline. Copy these report files to a persistent ground truth directory (e.g.
+`/home/gencore/GENEFLOW_TESTS_GT/<fcid>/`).
+2. Prepare a test run directory: Copy the original sequencer run directory and rename it with a test flowcell ID (e.g. `000000000-TEST1`).
+This prevents test runs from writing logs, deliveries, and other artifacts into the production directories for the real run.
+3. Configure the test: Create a test config file (e.g. test-miseq.config) that sets:
+  - `params.run_dir_path` — path to the renamed test run directory
+  - `params.truth_dir` — path to the ground truth reports saved in step 1
+4. Run the test: Submit launch_tests.sh via SLURM. It runs the pipeline with the `--test` flag, which:
+  - Skips the deliver process (no emails sent, no data delivered)
+  - Enables the compare_runs process, which calls `compare_runs.py` to diff the new MultiQC reports against the ground truth files
+5. Results: `compare_runs.py` compares three report types (demux report, run stats summary, undetermined barcodes) cell-by-cell. It reports
+ PASS if all values match within tolerance, or FAIL with a detailed breakdown of differences. Exit code 0 = pass, 2 = fail.
+
+### Example: adding a test for a new sequencer type
+
+1. After a successful production run of flowcell H323NDRX7, copy its reports
+```
+mkdir -p /home/gencore/GENEFLOW_TESTS_GT/H323NDRX7
+cp /path/to/multiqc/output/*.txt /home/gencore/GENEFLOW_TESTS_GT/H323NDRX7/
+```
+
+2. Copy and rename the run directory
+```
+cp -r /scratch/gencore/sequencers/A01097/250822_A01097_0361_AH323NDRX7 \
+      /scratch/gencore/sequencers/A01097/250822_A01097_0361_ANOVATEST1
+```
+
+3. Create test-novaseq.config pointing to both paths
+
+4. Update launch_tests.sh with the new fcid/config, then sbatch launch_tests.sh
