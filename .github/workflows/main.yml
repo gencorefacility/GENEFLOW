@@ -1,0 +1,60 @@
+name: Update Dependabot PR
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update_config:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          # This specifically checks out the PR's branch, not the base branch
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.PAT }}
+
+      - name: Parse Docker image and update Nextflow config
+        run: |
+          # Define file paths
+          DOCKERFILE="Dockerfile"
+          CONFIG_FILE="nextflow.config"
+
+          # Use grep and awk to extract the full image name and tag
+          FULL_IMAGE=$(grep -m 1 '^FROM' $DOCKERFILE | awk '{print $2}')
+
+          if [ -z "$FULL_IMAGE" ]; then
+            echo "Error: Could not find 'FROM' line in Dockerfile."
+            exit 1
+          fi
+
+          # Separate the image base name from the version tag
+          IMAGE_BASE=$(echo $FULL_IMAGE | cut -d: -f1)
+          NEW_VERSION=$(echo $FULL_IMAGE | cut -d: -f2)
+
+          echo "Found Docker image: $IMAGE_BASE"
+          echo "Found new version: $NEW_VERSION"
+
+          # Use sed to find the specific container line by its base name and update the version
+          sed -i "s|container = '$IMAGE_BASE:.*'|container = '$IMAGE_BASE:$NEW_VERSION'|g" $CONFIG_FILE
+
+          echo "Successfully updated $CONFIG_FILE with image: $IMAGE_BASE:$NEW_VERSION"
+
+      - name: Create commit and push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add nextflow.config
+          # Check if there are changes to commit to avoid an error
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "chore: Update container version from Dockerfile"
+            git push
+          else
+            echo "No changes to commit."
+          fi

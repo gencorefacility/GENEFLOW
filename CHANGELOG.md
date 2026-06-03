@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file, effective May 2025.
 
-## [2025-06-01]                                                                                                                       
+## [2026-06-01]                                                                                                                       
 ### Changed                                                                                                                           
 - Switched from HPC modules to containers (Apptainer/Conda)                         
 - Replaced Nextflow `-entry` flag with `--workflow_type` parameter and a dispatcher workflow.                                                                   
@@ -13,6 +13,11 @@ All notable changes to this project will be documented in this file, effective M
                                                                                                                                       
 ### Fixed                                                                                                                             
 - Process stream blocking in `get_num_lanes` that could cause the pipeline to hang.  
+
+## [2025-10-21]
+### Updated
+- Updated Picard Tools to version 3.4.0
+- Updated JDK to openjdk/17.0.2
 
 ## [2025-09-04]
 ### Updated

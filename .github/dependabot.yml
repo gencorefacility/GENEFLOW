@@ -1,0 +1,19 @@
+# Please see the documentation for all configuration options:
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# https://github.com/dependabot/dependabot-core/issues/2227#issuecomment-3274344175
+
+version: 2
+enable-beta-ecosystems: true
+updates:
+  - package-ecosystem: "conda"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "module-profile"
+  - package-ecosystem: "docker"
+    directories:
+      - "/env/picard"
+      - "/env/bases2fastq"
+    schedule:
+      interval: "daily"
+    target-branch: "module-profile"
