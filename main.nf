@@ -13,14 +13,26 @@ def cmdList = [
     "-c",
     "from slime import get_num_lanes; print(get_num_lanes('${fcid}'))"
 ]
+
+println cmdList
+
 def proc = cmdList.execute(envVars, null)
+
+// Consume streams immediately to prevent blocking
+def stdout = new StringBuilder()
+def stderr = new StringBuilder()
+
+proc.consumeProcessOutput(stdout, stderr)
+
 proc.waitFor()
+
 if (proc.exitValue() != 0) {
-    error "get_num_lanes failed: ${proc.err.text}"
+    error "get_num_lanes failed (exit code: ${proc.exitValue()}):\nSTDOUT: ${stdout}\nSTDERR: ${stderr}"
 }
-def lines = proc.in.text.readLines()
+
+def lines = stdout.toString().readLines()
 if (!lines) {
-  error "No output from get_num_lanes()"
+    error "No output from get_num_lanes()"
 }
 def num_lanes = lines.last().trim().toInteger()
 
@@ -36,8 +48,8 @@ process check_no_demux {
 
 	tag "${fcid}"
 
-	beforeScript "export PYTHONPATH=$PYTHONPATH:${workflow.projectDir}/bin"
-
+        beforeScript "export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
+      
 	input:
 	val lane
 
@@ -55,8 +67,7 @@ process check_do_merge {
 	echo true
 
 	tag "${fcid}"
-
-	beforeScript "export PYTHONPATH=$PYTHONPATH:${workflow.projectDir}/bin"
+        beforeScript "export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
 
   input:
   val qc_dep // not actually used in this process, but need to wait for this before starting
@@ -76,8 +87,6 @@ process tar {
 	publishDir "${alpha}/logs/${fcid}/archive/tar/", mode:'copy', failOnError: true, pattern: '.command.*'
 
 	tag "${fcid}"
-
-  module params.PBZIP2_MODULE
 
 	output:
 	path("*.tar.bz2"), emit: file
@@ -110,8 +119,8 @@ process rsyncToArchive {
 	shell:
 	"""
 	echo "rsyncToArchive: SRC: ${SRC}, destination: ${destination}"
-	ssh -i \$HOME/.ssh/id_rsa core2 "mkdir -p ${destination}"
-  rsync -avz --copy-links --progress --chmod=Dug=rwx,Dgo=rx,Fug=rw,Fgo=r -e "ssh -i ${HOME}/.ssh/id_rsa" ${SRC} core2:${destination}/
+	ssh core2 "mkdir -p ${destination}"
+	rsync -avz --copy-links --progress --chmod=Dug=rwx,Dgo=rx,Fug=rw,Fgo=r ${SRC} core2:${destination}/
 	exit_code=\$?
 	"""
 }
@@ -119,10 +128,9 @@ process rsyncToArchive {
 process _basecall_bases2fastq {
   publishDir "${alpha}/logs/${fcid}/basecall/${lane}", mode:'copy', failOnError: true, pattern: '.command.*'
   publishDir "${alpha}/logs/${fcid}/basecall/${lane}", mode:'copy', failOnError: false, pattern: '*.csv'
+  publishDir "${alpha}/logs/${fcid}/versions", mode:'copy', failOnError: true, pattern: '*_version.yml'
 
   tag "${fcid}"
-
-  module params.BASES2FASTQ_MODULE
 
   input:
   val lane
@@ -130,10 +138,15 @@ process _basecall_bases2fastq {
   output:
   val(lane), emit: lane
   path(".command.*")
-  path("*.csv") 
+  path("*.csv")
+  path "*_version.yml", emit: version 
 
   script:
   """
+    tmp_work_dir="${tmp_dir}${fcid}/${lane}"
+    mkdir -p \$tmp_work_dir
+    export TMPDIR="\$tmp_work_dir"
+
     echo "[SETTINGS],,,
     SettingName,Value,Lane,
     I1FastQ,TRUE,$lane,
@@ -158,6 +171,7 @@ process _basecall_bases2fastq {
       --exclude-tile 'L.*R..C..S.' \
       --include-tile 'L${lane}R..C..S.' \
       -p ${task.cpus} \
+      --no-error-on-invalid \
       --run-manifest run_manifest.csv
 
     # Rename output files
@@ -186,16 +200,19 @@ process _basecall_bases2fastq {
           counter=\$((counter + 1))
       fi
     done
+
+    cat <<-END_VERSIONS > bases2fastq_version.yml
+    "${task.process}":
+        bases2fastq: \$(bases2fastq --version | awk -F'version |,' '{print \$2}')
+    END_VERSIONS
   """
 }
 
 process _basecall_picard{
   publishDir "${alpha}/logs/${fcid}/basecall/${lane}", mode:'copy', failOnError: true, pattern: '.command.*'
+  publishDir "${alpha}/logs/${fcid}/versions", mode:'copy', failOnError: true, pattern: '*_version.yml'
 
   tag "${fcid}"
-
-  module params.PICARD_MODULE
-  module params.JDK_MODULE
 
   input:
   val lane
@@ -203,25 +220,22 @@ process _basecall_picard{
   output:
   val(lane), emit: lane
   path(".command.*")
+  path "*_version.yml", emit: version
 
   script:
   """
-    read_structure=\$(python3 -c "
-    import xml.dom.minidom
+    runinfo_xml="${params.run_dir_path}/RunInfo.xml"
 
-    read_structure = ''
-    runinfo = xml.dom.minidom.parse('${params.run_dir_path}/RunInfo.xml')
-    nibbles = runinfo.getElementsByTagName('Read')
+    # 1. Calculate read_structure
+    read_structure=\$(grep '<Read' "\$runinfo_xml" | \\
+                    sed -n 's/.*NumCycles="\\([0-9]\\+\\)".*/\\1T/p' | \\
+                    tr -d '\\n')
 
-    for nib in nibbles:
-      read_structure += nib.attributes['NumCycles'].value + 'T'
-    
-    print(read_structure)
-    ")
+    # 2. Calculate run_barcode
+    run_dir_name=\$(basename "${params.run_dir_path}")
+    run_barcode_with_zeros=\$(echo "\$run_dir_name" | awk -F '_' '{print \$(NF-1)}')
+    run_barcode=\$(echo "\$run_barcode_with_zeros" | sed 's/^0*//')
 
-    run_barcode=\$(python3 -c "
-    print('${params.run_dir_path}'.split('_')[-2].lstrip('0'))
-    ")
 
     out_path="${alpha}/lane/${fcid}/${lane}"
     mkdir -p \$out_path
@@ -229,7 +243,7 @@ process _basecall_picard{
     tmp_work_dir="${tmp_dir}${fcid}/${lane}"
     mkdir -p \$tmp_work_dir
 
-    java -jar -Xmx58g \$PICARD_JAR IlluminaBasecallsToFastq \
+    java -jar -Xmx58g /usr/picard/picard.jar IlluminaBasecallsToFastq \
       LANE=${lane} \
       READ_STRUCTURE=\${read_structure} \
       BASECALLS_DIR=${params.run_dir_path}/Data/Intensities/BaseCalls \
@@ -246,6 +260,11 @@ process _basecall_picard{
       TMP_DIR=\${tmp_work_dir}
 
     rm -rf \${tmp_work_dir}
+
+    cat <<-END_VERSIONS > IlluminaBasecallsToFastq_version.yml
+    "${task.process}":
+        picard IlluminaBasecallsToFastq: \$(java -jar -Xmx58g /usr/picard/picard.jar IlluminaBasecallsToFastq --version 2>&1 | awk -F: '/^Version:/ {print \$2}')
+    END_VERSIONS
     """
 }
 
@@ -253,6 +272,7 @@ process make_pheniqs_config {
 	echo true
 	
 	publishDir "${alpha}/pheniqs_conf/${fcid}/${lane}", mode:'copy', pattern: 'demux.json'
+	publishDir "${alpha}/pheniqs_conf/${fcid}/${lane}", mode:'copy', pattern: 'expected_barcodes.txt'
 	publishDir "${alpha}/logs/${fcid}/demux/make_config/${lane}", mode:'copy', failOnError: true
 
 	tag "${fcid}"
@@ -262,13 +282,14 @@ process make_pheniqs_config {
 
 	output:
 	tuple val(lane), path('demux.json'), emit: pheniqs_conf
+	path("expected_barcodes.txt")
 	path(".command.*")
 
 	when:
 	no_demux == "false"
 
 	script:
-    if( params.pheniqs_version == '1' )
+        if( params.pheniqs_version == '1' )
 	    """
 	    pheniqs_config.py \
 		    $fcid \
@@ -276,22 +297,23 @@ process make_pheniqs_config {
 		    20
 	    """
 
-    else if( params.pheniqs_version == '2' )
-      """
-      pheniqs_config_v2.py \
-        $fcid \
-        $lane \
-        20
-      """
-    else
-      error "Invalid params.pheniqs_version : ${params.pheniqs_version}"
+        else if( params.pheniqs_version == '2' )
+            """
+            pheniqs_config_v2.py \
+               $fcid \
+               $lane \
+               20
+            """
+        else
+            error "Invalid params.pheniqs_version : ${params.pheniqs_version}"
 }
 
 process run_pheniqs {
 	echo true
-
-	publishDir "${alpha}/logs/${fcid}/demux/pheniqs/${lane}", mode:'copy', failOnError: true
+        conda 'bioconda::pheniqs=2.1.0 python=3.8.5'	
+        publishDir "${alpha}/logs/${fcid}/demux/pheniqs/${lane}", mode:'copy', failOnError: true
 	publishDir "${alpha}/pheniqs_out/${fcid}/${lane}", mode:'copy', failOnError: true, pattern: 'demux.out'
+  	publishDir "${alpha}/logs/${fcid}/versions", mode:'copy', failOnError: true, pattern: '*_version.yml'
 
 	tag "${fcid}"
 
@@ -302,20 +324,26 @@ process run_pheniqs {
 	val(lane), emit: lane	// used as trigger for qc
 	path("demux.out")
 	path(".command.*")
+	path "*_version.yml", emit: version
 
   script:
     if( params.pheniqs_version == '1' )
         """
-        module load ${params.PHENIQS1_MODULE}
+        #module load ${params.PHENIQS1_MODULE}
         rm -rf ${alpha}/sample/${fcid}/${lane}/*
         pheniqs demux -C $pheniqs_conf > 'demux.out'
         """
 
     else if( params.pheniqs_version == '2' )
         """
-        module load ${params.PHENIQS2_MODULE}
+        #module load ${params.PHENIQS2_MODULE}
         rm -rf ${alpha}/sample/${fcid}/${lane}/*
         pheniqs mux -c $pheniqs_conf &> 'demux.out'
+
+        cat <<-END_VERSIONS > pheniqs_version.yml
+        "${task.process}":
+          pheniqs: \$(pheniqs --version | awk '{print \$3}')
+        END_VERSIONS
         """
     else
         error "Invalid params.pheniqs_version : ${params.pheniqs_version}"
@@ -327,10 +355,7 @@ process demux_reports {
     publishDir "${alpha}/logs/${fcid}/qc/${workflow.runName}/demux_reports/", mode:'copy', failOnError: true
 
     tag "${fcid}"
-
-    module params.ANACONDA_MODULE
-    conda params.conda_path
-
+    
     input:
     val lanes //because data might be merged, need to wait for all lanes
 
@@ -360,7 +385,7 @@ process merge_lanes {
 
     tag "${fcid}"
 
-    beforeScript "export PYTHONPATH=$PYTHONPATH:${workflow.projectDir}/bin"
+    beforeScript "export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
 
     input:
     val lanes //need to wait for all lanes
@@ -387,9 +412,9 @@ process get_lane_paths {
 
 	tag "${fcid}"
 
-	beforeScript "export PYTHONPATH=$PYTHONPATH:${workflow.projectDir}/bin"
-
-	input:
+        beforeScript "export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
+	
+        input:
 	val do_merge
 
 	output:
@@ -443,7 +468,7 @@ process fastqc {
 
     tag "${fcid}"
 
-    beforeScript "export PYTHONPATH=$PYTHONPATH:${workflow.projectDir}/bin"
+    beforeScript "export PYTHONPATH=\$PYTHONPATH:${workflow.projectDir}/bin"
 
     input:
     val path
@@ -475,15 +500,15 @@ process multiqc {
 
     tag "${fcid}"
 
-    module params.MULTIQC_MODULE
-
     input:
     tuple(val(path_to_data), path(fastqc))
     path reports
 
     output:
     path("${lane}/"), emit: files
-    tuple(val(path_to_data), path("${lane}/${fcid}_${lane}_summary_mqc.txt"), emit: delivery_path_and_summary_report)
+    val(path_to_data), emit: delivery_path
+    path("${lane}/${fcid}_${lane}_summary_mqc.txt"), emit: summary_report
+    path("${lane}/undetermined_barcodes.txt"), emit: undetermined_barcodes
     path(".command.*")
 
     shell:
@@ -496,7 +521,13 @@ process multiqc {
 
     cp ${fcid}_${lane}_*_mqc.txt ${lane}/.
     cd ${lane}
+    find "${alpha}/logs/${fcid}/versions" -name "*_version.yml" -exec cat {} + > versions_mqc_versions.yml
     multiqc -f -c ${workflow.projectDir}/bin/mqc_config.yaml --ai-summary-full .
+
+    # Ensure undetermined_barcodes.txt exists  (e.g. when no_demux is true)
+    if [ ! -f "undetermined_barcodes.txt" ]; then
+        echo "# No data generated" > undetermined_barcodes.txt
+    fi
     """
 }
 
@@ -510,13 +541,15 @@ process deliver {
     input:
     val archive_exit_code
     val rsync_exit_code
-    tuple(val(path), path(summary_report))
+    val(path) // path to data to deliver
+    path(summary_report)
+    path(undetermined_barcodes_file)
 
     output:
     path(".command.*")
 
     when:
-    archive_exit_code.toInteger() == 0 && rsync_exit_code.toInteger() == 0
+    archive_exit_code.toInteger() == 0 && rsync_exit_code.toInteger() == 0 && !params.test
 
     shell:
     lane = new File(path).getName().trim()
@@ -526,7 +559,35 @@ process deliver {
     echo "archive_exit_code: $archive_exit_code"
 
     # check qc and deliver
-    qc_deliver.py ${path.trim()} ${summary_report}
+    qc_deliver.py ${path.trim()} ${summary_report} ${undetermined_barcodes_file}
+    """
+}
+
+process compare_runs{
+    echo true
+
+    publishDir "${alpha}/logs/${fcid}/qc/${workflow.runName}/compare_runs", mode:'copy', failOnError: true
+
+    tag "${fcid}"
+    
+    input:    
+    path multiqc_files // not using in script, we point to the multiqc dir directly for --new_dir, but use as depdendency
+    
+    output:
+    path(".command.*")
+
+    when:
+    params.test
+
+    script:
+    """
+    # Find the first (and presumably only) directory
+    lane=\$(find ${alpha}/logs/${fcid}/qc/${workflow.runName}/multiqc/ -maxdepth 1 -type d ! -path ${alpha}/logs/${fcid}/qc/${workflow.runName}/multiqc/ -exec basename {} \\;)
+
+    compare_runs.py \
+        --truth_dir $params.truth_dir \
+        --new_dir ${alpha}/logs/${fcid}/qc/${workflow.runName}/multiqc/\${lane}/\${lane}/ \
+        --abs_tol 0 --rel_tol 0
     """
 }
 
@@ -556,7 +617,8 @@ workflow _qc{
         fastqc(path, fastqc_dep, qc_dep)
         multiqc(fastqc.out.delivery_path_and_fastqc_files, demux_reports.out.reports)
         rsyncToArchive(multiqc.out.files, fastqc_path + "/${fcid}/", 'qc')
-	deliver(archive_exit_code, rsyncToArchive.out.exit_code, multiqc.out.delivery_path_and_summary_report)
+	compare_runs(multiqc.out.files)
+	deliver(archive_exit_code, rsyncToArchive.out.exit_code, multiqc.out.delivery_path, multiqc.out.summary_report, multiqc.out.undetermined_barcodes)
 }
 
 workflow archive{
@@ -604,12 +666,31 @@ workflow pheniqs_conf{
     make_pheniqs_config(check_no_demux.out.lane)
 }
 
-workflow {
+workflow master{
     archive()
     _basecall(lanes)
     _demux(_basecall.out.lane) 
     qc_dep = _demux.out.collect().ifEmpty(_basecall.out.lane.collect())
     _qc(archive.out, qc_dep)
+}
+
+// Clean new entry workflow - just dispatch logic
+workflow {
+    if (params.workflow_type == 'demux') {
+        demux()
+    }
+    else if (params.workflow_type == 'qc') {
+        qc()
+    }
+    else if (params.workflow_type == 'pheniqs_conf') {
+        pheniqs_conf()
+    }
+    else if (params.workflow_type == 'master') {
+        master()
+    }
+    else {
+        error("Unknown workflow_type: ${params.workflow_type}. Valid options: main, demux, qc, pheniqs_conf")
+    }
 }
 
 workflow.onComplete {

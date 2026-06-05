@@ -145,7 +145,7 @@ def deliver_data(fcid, path, lane_num, group, scheduled_date):
     copy_command = subprocess.getoutput('mkdir -p {}; rm -f {}/*; cp -v {}/* {}/.'.format(delivery_dir, delivery_dir, path, delivery_dir))
     return delivery_dir
 
-def check_qc_and_deliver(path, summary_report_path):
+def check_qc_and_deliver(path, summary_report_path, undetermined_barcodes_path):
 
     stats = parse_summary(summary_report_path)
     result = check_pool_errors(stats)
@@ -155,6 +155,11 @@ def check_qc_and_deliver(path, summary_report_path):
     summary_report_filename = os.path.basename(summary_report_path)
     fcid, lane_num = summary_report_filename.split("_")[:2]
 
+    if lane_num == 'merged':
+        i = 1
+    else:
+        i = lane_num
+
     run = get_run_info(fcid)
     manufacturer = run['sequencer']['manufacturer']
 
@@ -162,11 +167,6 @@ def check_qc_and_deliver(path, summary_report_path):
         print("qc_delivery.py: Passed QC")
         
         lanes = get_lanes(run["id"])["lanes"]
-        
-        # Get Lane and Pool Info
-        i = lane_num
-        if i == 'merged':
-            i = 1
         
         lane = next(lane for lane in lanes if lane["lane_number"] == int(i))
         pool = get_pool(lane["id"])
@@ -202,7 +202,7 @@ def check_qc_and_deliver(path, summary_report_path):
         # send email
         pool_owner_email = f"{pool['created_by']}@nyu.edu"
         pi_email = f"{pool['pi_netid']}@nyu.edu" if pool['pi_netid'] else ''
-        recipients = ['mk5636@nyu.edu', 'gencore-group@nyu.edu', pool_owner_email] + ([pi_email] if pi_email else [])
+        recipients = ['mk5636@nyu.edu', 'genomics.core@nyu.edu', pool_owner_email] + ([pi_email] if pi_email else [])
         #recipients = ['mk5636@nyu.edu']
         subject = "Data For " + fcid
         send_email(recipients, subject, delivery_email)
@@ -227,17 +227,47 @@ def check_qc_and_deliver(path, summary_report_path):
                 print("first_demux_undetermined_pct is not None it's: " + str(first_demux_undetermined_pct))
                 message = "Undetermined\nDemultiplex Attempt 1 = {}%\nDemultiplex Attempt 2 = {}%".format(first_demux_undetermined_pct, stats["% Undetermined"])
         else:
-            message = error + "\nNo Auto Redemultiplexing\nhttp://core-fastqc.bio.nyu.edu/" + fcid
+            # Make the prompt for ChatGPT
+            path_to_expected_barcodes = os.path.join(alpha, "pheniqs_conf", fcid, str(i), 'expected_barcodes.txt')
+            # read in expected barcodes
+            with open(path_to_expected_barcodes, 'r') as f:
+                expected_barcodes = f.readlines()
+            # read in first 51 lines of observed barcodes
+            observed_barcodes = []
+            with open(undetermined_barcodes_path, 'r') as f:
+                for _ in range(51):
+                    line = f.readline()
+                    if not line:
+                        break
+                    observed_barcodes.append(line)
+            base_prompt = f"""
+                You are an expert bioinformatician helping to troubleshoot sequencing run issues. 
+                A recent sequencing run has a high percentage of undetermined reads ({error}). 
+                The expected barcodes for the libraries in this run are provided, along with the observed barcodes from the undetermined reads. 
+                Analyze the differences between the expected and observed barcodes to identify potential causes for the high undetermined rate. 
+                Consider issues such as:
+                1) Reverse-complemented barcodes — for example, index 2 being reverse complemented on NovaSeq/NextSeq runs, or reversed 
+                single-index barcodes on MiSeq. You won't know what sequencer was used, and you don't need to; simply identify the pattern. 
+                It is also rare but possible that some rows/libraries have their barcodes reverse complemented, while other rows do not.
+                2) Length mismatches between expected and observed barcodes.
+                Analyze the expected and observed barcode lists and clearly but briefly explain any discrepancies you detect, for example:
+                "The observed barcodes appear to be the reverse complements of the expected barcodes."
+                or "The observed barcodes are 1 base longer than the expected barcodes."
+            """
+            prompt = f"{base_prompt}. \n Observed Barcodes: {observed_barcodes}; \n Expected Barcodes: {expected_barcodes}"
+
+            message = error + "\nNo Auto Redemultiplexing\nhttp://core-fastqc.bio.nyu.edu/" + fcid + "/" + lane_num + "/multiqc_report.html" + "\n\nPrompt:\n" + prompt
 
         send_email(["mk5636@nyu.edu"], "ERROR For {}".format(fcid), message)
     
 def main():
-    # qc_deliver.py <path_to_data_to_deliver> <path_to_sumary_report>
-    # ex: qc_deliver.py /path/to/lane/FCID/1 /path/to/qc/FCID/1/sumary_report.txt
-    # ex: qc_deliver.py /path/to/merged/FCID/merged path/to/qc/FCID/merged/sumary_report.txt
+    # qc_deliver.py <path_to_data_to_deliver> <path_to_sumary_report> <path_to_undetermined_barcodes>
+    # ex: qc_deliver.py /path/to/lane/FCID/1 /path/to/qc/FCID/1/sumary_report.txt undetermined_barcodes.txt
+    # ex: qc_deliver.py /path/to/merged/FCID/merged path/to/qc/FCID/merged/sumary_report.txt undetermined_barcodes.txt
     path = sys.argv[1]
     summary_report_path = sys.argv[2]
-    check_qc_and_deliver(path, summary_report_path)
+    undetermined_barcodes_path = sys.argv[3]
+    check_qc_and_deliver(path, summary_report_path, undetermined_barcodes_path)
         
 if __name__ == "__main__":
     main()

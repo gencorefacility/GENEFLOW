@@ -1,24 +1,15 @@
 // Run Directory Path
 params.run_dir_path = ""
 params.pheniqs_version = "2"
+params.workflow_type = "master"
+params.test = false
 
 // Global Configuration
 env.alpha = ""
 env.tmp_dir = ""
 env.fastqc_path = ""
-env.archive_path= ""
+env.archive_path=""
 params.admin_email = ""
-
-// modules
-params.PICARD_MODULE = "picard/3.4.0"
-params.PHENIQS1_MODULE = "pheniqs/1.1.0"
-params.PHENIQS2_MODULE = "pheniqs/2.1.0"
-params.JDK_MODULE = "openjdk/17.0.2"
-params.ANACONDA_MODULE = "anaconda3/2020.07"
-params.MULTIQC_MODULE = "multiqc/1.27"
-params.PBZIP2_MODULE = "pbzip2/1.1.13"
-params.BASES2FASTQ_MODULE = "bases2fastq/2.2.0"
-params.conda_path = ""
 
 // nextflow work dir
 workDir = ""
@@ -53,7 +44,7 @@ process {
         time = { 1.min * task.attempt }
   }
 
- withName: tar { 
+  withName: tar { 
         memory = '4 GB'
         cpus = 6
         time = { 12.h * task.attempt }
@@ -65,25 +56,25 @@ process {
         time = { 4.h * task.attempt }
   }
 
- withName: _basecall_picard { 
+  withName: _basecall_picard { 
         memory = { 30.GB * task.attempt }
         cpus = 4
         time = { 32.h * task.attempt }
   }
 
-withName: _basecall_bases2fastq {
+  withName: _basecall_bases2fastq {
         memory = { 60.GB * task.attempt }
         cpus = 20
         time = { 2.h * task.attempt }
   }
 
- withName: make_pheniqs_config { 
+  withName: make_pheniqs_config { 
         memory = '4 GB'
         cpus = 1
         time = { 5.min * task.attempt }
   }
 
- withName: run_pheniqs { 
+  withName: run_pheniqs { 
         memory = { 60.GB * task.attempt }
         cpus = 20
         time = { 24.h * task.attempt }
@@ -109,12 +100,48 @@ withName: _basecall_bases2fastq {
 }
 
 trace {
-    enabled = true
-    file = params.trace_file_path
-    fields = 'task_id,name,status,cpus,memory,realtime,%cpu,%mem,vmem'
-    overwrite = true
+  enabled = true
+  file = params.trace_file_path
+  fields = 'task_id,name,status,cpus,memory,realtime,%cpu,%mem,vmem'
+  overwrite = true
 }
 
 env {
   SEQERA_ACCESS_TOKEN=""
+}
+
+profiles {
+    hpc {
+        apptainer {
+            enabled = true
+            runOptions = "-B /scratch"
+        }
+        
+        conda {
+            enabled = true
+            channels = ['conda-forge', 'bioconda', 'defaults']
+            cacheDir = "/scratch/gencore/.conda/cacheDir"
+	}
+
+        process {
+	    module = 'anaconda3/2025.06'
+            conda = "${baseDir}/environment.yml"
+            withName: '_basecall_picard' {
+                container = 'docker://broadinstitute/picard:3.4.0'
+
+                memory = { 80.GB * task.attempt }
+                cpus = 4
+                time = { 32.h * task.attempt }
+            }
+
+            withName: '_basecall_bases2fastq' {
+                container = 'docker://elembio/bases2fastq:2.2.0'
+
+                memory = { 60.GB * task.attempt }
+                cpus = 20
+                time = { 2.h * task.attempt }
+            }
+        }
+       
+    }
 }

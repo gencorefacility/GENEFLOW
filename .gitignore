@@ -1,2 +1,6 @@
+.nextflow/
+bin/__pycache__/
+*.log
+*.out
 nextflow.config
 bin/config.py

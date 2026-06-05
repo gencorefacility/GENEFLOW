@@ -228,12 +228,12 @@ def run_redemux(fcid):
     job_name_cmd = f"--job-name=GENEFLOW_MANAGER_\\({fcid}\\)_redemux"
     
     # Find the run directory
-    find_cmd = f"cd /scratch/gencore/sequencers/; find -maxdepth 2 -type d -name '*{fcid}'"
+    find_cmd = f"cd {raw_run_root}; find -maxdepth 2 -type d -name '*{fcid}'"
     rundir_cmd = f"rundir=$({find_cmd}); echo rundir = $rundir;"
     
     # Construct the launch command with the found run directory
     # TODO: make path to launch.sh a param in the config?
-    launch_cmd = f"/home/gencore/SCRIPTS/GENEFLOW/launch.sh /scratch/gencore/sequencers/$rundir {fcid} demux"
+    launch_cmd = f"/home/gencore/SCRIPTS/GENEFLOW/launch.sh {raw_run_root}/$rundir {fcid} demux"
     
     # Combine the commands
     full_cmd = f"{rundir_cmd} {base_cmd} {output_cmd} {error_cmd} {job_name_cmd} {launch_cmd}"

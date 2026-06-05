@@ -122,6 +122,8 @@ channel = {
 pheniqs_conf["sample"]["undetermined"] = channel
 #pheniqs_conf["sample"]["codec"]["undetermined"] = channel??
 
+# Write just a list of expected barcodes
+barcode_list = []
 
 # Make Library Channels:
 for l in libs:
@@ -143,9 +145,16 @@ for l in libs:
         "output": [f"{fcid}_l0{lane['lane_number']}_n0{x+1}_{lib['name']}.fastq.gz" for x in range(non_index_read_count)]
     }
     pheniqs_conf["sample"]["codec"][lib['name']] = channel
+    barcode_list.append(barcode_sequences)
 
 with open(f'demux.json', 'w') as outfile:
     json.dump(pheniqs_conf, outfile, indent=4)
+# Write barcode_list to expected_barcodes.txt, one element per line
+
+with open('expected_barcodes.txt', 'w') as f:
+    for item in barcode_list:
+            f.write('-'.join(item) + '\n')
 
 print("Pheniqs2 config file created for lane {}: demux.json".format(lane['lane_number']))
+print("expected_barcodes.txt file created for lane {}".format(lane['lane_number']))
 
