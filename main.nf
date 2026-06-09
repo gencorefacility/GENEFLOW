@@ -689,7 +689,7 @@ workflow {
         master()
     }
     else {
-        error("Unknown workflow_type: ${params.workflow_type}. Valid options: main, demux, qc, pheniqs_conf")
+        error("Unknown workflow_type: ${params.workflow_type}. Valid options: master, demux, qc, pheniqs_conf")
     }
 }
 
